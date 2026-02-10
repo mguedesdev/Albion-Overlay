@@ -53,6 +53,7 @@ export const DEFAULT_STATE: AppState = {
     lose: 0,
     profit: 0,
     builds: 1,
+    currentBuild: 0,
   },
   lostBuilds: [],
   style: {
@@ -165,6 +166,7 @@ export interface AppState {
     lose: number;
     profit: number;
     builds: number;
+    currentBuild: number;
   };
   lostBuilds: LostBuild[];
   style: OverlayStyle;

@@ -38,6 +38,26 @@ const AdminPage: React.FC = () => {
     // But setting it ensures immediate feedback if the value didn't actually change numerically
     // setProfitRaw(val === 0 ? '' : formatSilver(val)); 
   };
+
+  const [currentBuildRaw, setCurrentBuildRaw] = useState(
+    state.stats.currentBuild === 0 ? '' : formatSilver(state.stats.currentBuild)
+  );
+
+  useEffect(() => {
+    const currentParsed = parseSilverShorthand(currentBuildRaw);
+    if (currentParsed !== state.stats.currentBuild) {
+      setCurrentBuildRaw(state.stats.currentBuild === 0 ? '' : formatSilver(state.stats.currentBuild));
+    }
+  }, [state.stats.currentBuild]);
+
+  const handleCurrentBuildChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentBuildRaw(e.target.value);
+  };
+
+  const commitCurrentBuild = () => {
+    const val = parseSilverShorthand(currentBuildRaw);
+    updateStats({ currentBuild: val });
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -221,6 +241,7 @@ const AdminPage: React.FC = () => {
     { key: 'loss', label: t.fieldLoss, icon: 'fa-arrow-trend-down' },
     { key: 'builds', label: t.fieldBuilds, icon: 'fa-tshirt' },
     { key: 'netProfit', label: t.fieldNetProfit, icon: 'fa-scale-balanced' },
+    // { key: 'currentBuild', label: 'Build Atual', icon: 'fa-vest' }, // Optional: if we want to show it on overlay too
   ];
 
   const animationOptions = [
@@ -374,6 +395,58 @@ const AdminPage: React.FC = () => {
                     />
                   </div>
                   <StatControl label={state.style.customLabels.builds} value={state.stats.builds} onChange={(builds) => updateStats({ builds })} icon="fa-tshirt" color="bg-purple-500" />
+                  
+                  {/* Current Build & Death Button */}
+                  <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-lg col-span-1 sm:col-span-2">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 rounded-lg bg-orange-500/20"><i className="fas fa-vest text-orange-500"></i></div>
+                      <span className="font-semibold text-gray-300 uppercase text-xs tracking-wider">BUILD ATUAL</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Valor da Build" 
+                          value={currentBuildRaw} 
+                          onChange={handleCurrentBuildChange}
+                          onBlur={commitCurrentBuild}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              commitCurrentBuild();
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg py-2 px-3 text-white font-bold" 
+                        />
+                        <button 
+                          onClick={() => {
+                            const val = parseSilverShorthand(currentBuildRaw);
+                            const newBuild: LostBuild = {
+                                id: Math.random().toString(36).substr(2, 9),
+                                name: `Morte (${new Date().toLocaleTimeString()})`,
+                                value: val,
+                                timestamp: Date.now(),
+                              };
+                          
+                              setState(prev => ({
+                                ...prev,
+                                stats: {
+                                  ...prev.stats,
+                                  lose: prev.stats.lose + 1,
+                                  builds: prev.stats.builds + 1,
+                                  // Reset current build value after death
+                                  currentBuild: 0 
+                                },
+                                lostBuilds: [newBuild, ...prev.lostBuilds]
+                              }));
+                              // Reset visual input
+                              setCurrentBuildRaw('');
+                          }}
+                          className="bg-red-600 hover:bg-red-500 text-white font-bold px-6 rounded-lg transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                        >
+                          <i className="fas fa-skull"></i> MORRI
+                        </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
