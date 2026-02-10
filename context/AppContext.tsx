@@ -1,5 +1,11 @@
-
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react';
 import { AppState, DEFAULT_STATE } from '../types';
 
 interface AppContextType {
@@ -15,12 +21,21 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'albion_overlay_state_v3';
 
-// Função auxiliar para merge profundo simples de objetos de estilo e campos
+// Detecta se está no overlay
+const IS_OVERLAY =
+  typeof window !== 'undefined' &&
+  window.location.hash.includes('overlay');
+
+// Merge profundo simples para style
 const deepMerge = (target: any, source: any) => {
   const output = { ...target };
   if (source && typeof source === 'object') {
     Object.keys(source).forEach(key => {
-      if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      if (
+        source[key] &&
+        typeof source[key] === 'object' &&
+        !Array.isArray(source[key])
+      ) {
         output[key] = { ...target[key], ...source[key] };
       } else {
         output[key] = source[key];
@@ -30,98 +45,187 @@ const deepMerge = (target: any, source: any) => {
   return output;
 };
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Garante que novos campos de estilo (como animationStyle) existam mesmo em saves antigos
-        return {
-          ...DEFAULT_STATE,
-          ...parsed,
-          style: deepMerge(DEFAULT_STATE.style, parsed.style),
-          stats: { ...DEFAULT_STATE.stats, ...parsed.stats }
-        };
-      } catch (e) {
-        return DEFAULT_STATE;
-      }
-    }
-    return DEFAULT_STATE;
-  });
+export const AppProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [state, setState] = useState<AppState>(DEFAULT_STATE);
 
+  /**
+   * 1️⃣ Bootstrap do estado
+   * - Overlay: SEMPRE busca do backend
+   * - Admin: tenta localStorage primeiro, depois backend
+   */
   useEffect(() => {
-    // Persiste localmente para uso offline / mesma máquina
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const init = async () => {
+      // Admin tenta local primeiro
+      if (!IS_OVERLAY) {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            setState({
+              ...DEFAULT_STATE,
+              ...parsed,
+              style: deepMerge(DEFAULT_STATE.style, parsed.style),
+              stats: { ...DEFAULT_STATE.stats, ...parsed.stats },
+            });
+            return;
+          } catch {}
+        }
+      }
 
-    // Também envia o estado completo para o backend (se existir /api/state)
+      // Fallback / Overlay → backend
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+
+        const remote = await res.json();
+        if (!remote) return;
+
+        setState({
+          ...DEFAULT_STATE,
+          ...remote,
+          style: deepMerge(DEFAULT_STATE.style, remote.style),
+          stats: { ...DEFAULT_STATE.stats, ...remote.stats },
+        });
+      } catch (err) {
+        console.error('Erro ao inicializar estado remoto', err);
+      }
+    };
+
+    init();
+  }, []);
+
+  /**
+   * 2️⃣ Persistência
+   * - Admin: salva local + backend
+   * - Overlay: NÃO escreve
+   */
+  useEffect(() => {
+    if (IS_OVERLAY) return;
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
+
     const syncRemote = async () => {
       try {
         await fetch('/api/state', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(state),
         });
       } catch (err) {
-        console.error('Falha ao sincronizar estado remoto', err);
+        console.error('Erro ao sincronizar estado remoto', err);
       }
     };
 
-    // Ignora erros silenciosamente em ambiente de desenvolvimento/local
     syncRemote();
   }, [state]);
 
+  /**
+   * 3️⃣ Polling no Overlay (ESSENCIAL PARA OBS)
+   */
   useEffect(() => {
+    if (!IS_OVERLAY) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+
+        const remote = await res.json();
+        if (!remote) return;
+
+        setState(prev =>
+          JSON.stringify(prev) === JSON.stringify(remote)
+            ? prev
+            : {
+                ...DEFAULT_STATE,
+                ...remote,
+                style: deepMerge(DEFAULT_STATE.style, remote.style),
+                stats: { ...DEFAULT_STATE.stats, ...remote.stats },
+              }
+        );
+      } catch {}
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /**
+   * 4️⃣ Storage sync (só Admin ↔ Admin)
+   */
+  useEffect(() => {
+    if (IS_OVERLAY) return;
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         try {
           const newState = JSON.parse(e.newValue);
-          setState(prev => ({
+          setState({
+            ...DEFAULT_STATE,
             ...newState,
-            style: deepMerge(DEFAULT_STATE.style, newState.style)
-          }));
-        } catch (err) {
-          console.error("Erro ao sincronizar estado:", err);
-        }
+            style: deepMerge(DEFAULT_STATE.style, newState.style),
+            stats: { ...DEFAULT_STATE.stats, ...newState.stats },
+          });
+        } catch {}
       }
     };
+
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const updateStats = useCallback((newStats: Partial<AppState['stats']>) => {
-    setState(prev => ({
-      ...prev,
-      stats: { ...prev.stats, ...newStats }
-    }));
-  }, []);
+  /**
+   * 5️⃣ Actions
+   */
+  const updateStats = useCallback(
+    (newStats: Partial<AppState['stats']>) => {
+      setState(prev => ({
+        ...prev,
+        stats: { ...prev.stats, ...newStats },
+      }));
+    },
+    []
+  );
 
-  const updateStyle = useCallback((newStyle: Partial<AppState['style']>) => {
-    setState(prev => ({
-      ...prev,
-      style: deepMerge(prev.style, newStyle)
-    }));
-  }, []);
+  const updateStyle = useCallback(
+    (newStyle: Partial<AppState['style']>) => {
+      setState(prev => ({
+        ...prev,
+        style: deepMerge(prev.style, newStyle),
+      }));
+    },
+    []
+  );
 
   const resetStats = useCallback(() => {
     setState(prev => ({
       ...prev,
       stats: { ...DEFAULT_STATE.stats },
-      lostBuilds: []
+      lostBuilds: [],
     }));
   }, []);
 
   const resetStyle = useCallback(() => {
     setState(prev => ({
       ...prev,
-      style: JSON.parse(JSON.stringify(DEFAULT_STATE.style))
+      style: JSON.parse(JSON.stringify(DEFAULT_STATE.style)),
     }));
   }, []);
 
   return (
-    <AppContext.Provider value={{ state, updateStats, updateStyle, resetStats, resetStyle, setState }}>
+    <AppContext.Provider
+      value={{
+        state,
+        updateStats,
+        updateStyle,
+        resetStats,
+        resetStyle,
+        setState,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
@@ -129,8 +233,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useAppContext = () => {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext deve ser usado dentro de um AppProvider');
+  if (!context) {
+    throw new Error('useAppContext deve ser usado dentro de AppProvider');
   }
   return context;
 };
