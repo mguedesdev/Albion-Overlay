@@ -12,8 +12,7 @@ const AdminPage: React.FC = () => {
   const [newBuildValue, setNewBuildValue] = useState('');
   const [quickDeathValue, setQuickDeathValue] = useState('');
   const [activeTab, setActiveTab] = useState<'stats' | 'style'>('stats');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[state.language];
@@ -104,29 +103,6 @@ const AdminPage: React.FC = () => {
     setState(prev => ({ ...prev, language: prev.language === 'pt' ? 'en' : 'pt' }));
   };
 
-  const forceSyncRemote = async () => {
-    try {
-      setIsSyncing(true);
-      setSyncStatus('idle');
-      const res = await fetch('/api/state', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(state),
-      });
-      if (!res.ok) {
-        throw new Error('Sync failed');
-      }
-      setSyncStatus('success');
-    } catch (err) {
-      console.error('Erro ao forçar sincronização remota', err);
-      setSyncStatus('error');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const exportData = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
     const downloadAnchorNode = document.createElement('a');
@@ -209,62 +185,52 @@ const AdminPage: React.FC = () => {
       <input type="file" ref={fileInputRef} onChange={importData} className="hidden" accept=".json" />
       
       {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-        <div className="p-6 border-b border-gray-800">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <i className="fas fa-shield-halved text-blue-500"></i>
-            Albion Overlay
-          </h1>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'stats' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}>
-            <i className="fas fa-chart-line"></i>{t.dashboard}
-          </button>
-          <button onClick={() => setActiveTab('style')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'style' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}>
-            <i className="fas fa-palette"></i>{t.styleLayout}
-          </button>
-        </nav>
-        
-        <div className="p-4 space-y-3 border-t border-gray-800">
-          <div className="flex items-center justify-between px-2 text-[10px] text-gray-500 font-bold uppercase mb-2">
-            <span>{t.lang}</span>
-            <button onClick={toggleLanguage} className="px-2 py-0.5 rounded bg-gray-800 text-blue-400 border border-gray-700">{state.language.toUpperCase()}</button>
+      {sidebarOpen && (
+        <div className="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
+          <div className="p-6 border-b border-gray-800">
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <i className="fas fa-shield-halved text-blue-500"></i>
+              Albion Overlay
+            </h1>
           </div>
-          <button onClick={copyOverlayUrl} className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2 rounded-lg flex items-center justify-center gap-2 border border-blue-500/30 transition-colors">
-            <i className="fas fa-copy"></i>{t.copyUrl}
-          </button>
-          <button
-            onClick={forceSyncRemote}
-            disabled={isSyncing}
-            className={`w-full text-xs py-2 rounded-lg flex items-center justify-center gap-2 border transition-colors ${
-              isSyncing
-                ? 'bg-gray-800 text-gray-400 border-gray-700 cursor-wait'
-                : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30'
-            }`}
-          >
-            <i className={`fas fa-cloud-arrow-up ${isSyncing ? 'animate-pulse' : ''}`}></i>
-            {t.forceSync}
-          </button>
-          {syncStatus !== 'idle' && (
-            <div className="text-[10px] text-center">
-              {syncStatus === 'success' ? (
-                <span className="text-emerald-400">{t.syncOk}</span>
-              ) : (
-                <span className="text-red-400">{t.syncError}</span>
-              )}
+          <nav className="flex-1 p-4 space-y-2">
+            <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'stats' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}>
+              <i className="fas fa-chart-line"></i>{t.dashboard}
+            </button>
+            <button onClick={() => setActiveTab('style')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'style' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}>
+              <i className="fas fa-palette"></i>{t.styleLayout}
+            </button>
+          </nav>
+          
+          <div className="p-4 space-y-2 border-t border-gray-800">
+            <div className="flex items-center justify-between px-2 text-[10px] text-gray-500 font-bold uppercase mb-2">
+              <span>{t.lang}</span>
+              <button onClick={toggleLanguage} className="px-2 py-0.5 rounded bg-gray-800 text-blue-400 border border-gray-700">{state.language.toUpperCase()}</button>
             </div>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={exportData} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.exportData}</button>
-            <button onClick={() => fileInputRef.current?.click()} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.importData}</button>
+            <button onClick={copyOverlayUrl} className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2 rounded-lg flex items-center justify-center gap-2 border border-blue-500/30 transition-colors">
+              <i className="fas fa-copy"></i>{t.copyUrl}
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={exportData} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.exportData}</button>
+              <button onClick={() => fileInputRef.current?.click()} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.importData}</button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="bg-gray-900/50 backdrop-blur-md p-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-300">{activeTab === 'stats' ? t.statsEditor : t.styleCustomizer}</h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(prev => !prev)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              aria-label={sidebarOpen ? 'Fechar painel lateral' : 'Abrir painel lateral'}
+            >
+              <i className={`fas ${sidebarOpen ? 'fa-chevron-left' : 'fa-bars'}`}></i>
+            </button>
+            <h2 className="text-lg font-semibold text-gray-300">{activeTab === 'stats' ? t.statsEditor : t.styleCustomizer}</h2>
+          </div>
           <div className="flex items-center gap-4 text-sm text-gray-500">
             {activeTab === 'stats' && (
               <button 

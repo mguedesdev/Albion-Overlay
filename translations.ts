@@ -81,10 +81,7 @@ export const translations = {
     animSlide: 'Deslizar',
     animBounce: 'Pular (Pop)',
     animFade: 'Suave (Fade)',
-    animFlip: 'Giro 3D',
-    forceSync: 'Forçar Sincronização',
-    syncOk: 'Sincronizado com OBS',
-    syncError: 'Erro ao sincronizar'
+    animFlip: 'Giro 3D'
   },
   en: {
     dashboard: 'Control Dashboard',
@@ -167,9 +164,6 @@ export const translations = {
     animSlide: 'Slide',
     animBounce: 'Bounce (Pop)',
     animFade: 'Fade',
-    animFlip: 'Flip 3D',
-    forceSync: 'Force Sync',
-    syncOk: 'Synced with OBS',
-    syncError: 'Sync error'
+    animFlip: 'Flip 3D'
   }
 };
