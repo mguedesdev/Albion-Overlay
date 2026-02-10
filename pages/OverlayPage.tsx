@@ -40,6 +40,7 @@ const AnimatedValue: React.FC<{ value: string | number, colorClass?: string, ani
 const OverlayPage: React.FC = () => {
   const { state, setState } = useAppContext();
   const [showStatus, setShowStatus] = useState(true);
+  const lastRemoteRef = useRef<string | null>(null);
   const { style, stats, lostBuilds } = state;
   
   // Esconde o status de "Conectado" após 3 segundos
@@ -57,8 +58,12 @@ const OverlayPage: React.FC = () => {
         if (!res.ok) return;
         const remote = await res.json();
         if (remote && typeof remote === 'object') {
-          // Considera o backend como fonte de verdade para o overlay
-          setState(remote);
+          const serialized = JSON.stringify(remote);
+          if (serialized !== lastRemoteRef.current) {
+            lastRemoteRef.current = serialized;
+            // Considera o backend como fonte de verdade para o overlay
+            setState(remote);
+          }
         }
       } catch {
         // Em caso de erro (por exemplo, ambiente local sem backend),
@@ -69,8 +74,8 @@ const OverlayPage: React.FC = () => {
     // Busca inicial imediata
     fetchRemoteState();
 
-    // Atualiza a cada 1 segundo
-    const id = setInterval(fetchRemoteState, 1000);
+    // Atualiza a cada 500ms para ficar mais "tempo real"
+    const id = setInterval(fetchRemoteState, 500);
     return () => clearInterval(id);
   }, [setState]);
 

@@ -12,6 +12,8 @@ const AdminPage: React.FC = () => {
   const [newBuildValue, setNewBuildValue] = useState('');
   const [quickDeathValue, setQuickDeathValue] = useState('');
   const [activeTab, setActiveTab] = useState<'stats' | 'style'>('stats');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[state.language];
@@ -100,6 +102,29 @@ const AdminPage: React.FC = () => {
 
   const toggleLanguage = () => {
     setState(prev => ({ ...prev, language: prev.language === 'pt' ? 'en' : 'pt' }));
+  };
+
+  const forceSyncRemote = async () => {
+    try {
+      setIsSyncing(true);
+      setSyncStatus('idle');
+      const res = await fetch('/api/state', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(state),
+      });
+      if (!res.ok) {
+        throw new Error('Sync failed');
+      }
+      setSyncStatus('success');
+    } catch (err) {
+      console.error('Erro ao forçar sincronização remota', err);
+      setSyncStatus('error');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const exportData = () => {
@@ -200,7 +225,7 @@ const AdminPage: React.FC = () => {
           </button>
         </nav>
         
-        <div className="p-4 space-y-2 border-t border-gray-800">
+        <div className="p-4 space-y-3 border-t border-gray-800">
           <div className="flex items-center justify-between px-2 text-[10px] text-gray-500 font-bold uppercase mb-2">
             <span>{t.lang}</span>
             <button onClick={toggleLanguage} className="px-2 py-0.5 rounded bg-gray-800 text-blue-400 border border-gray-700">{state.language.toUpperCase()}</button>
@@ -208,6 +233,27 @@ const AdminPage: React.FC = () => {
           <button onClick={copyOverlayUrl} className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2 rounded-lg flex items-center justify-center gap-2 border border-blue-500/30 transition-colors">
             <i className="fas fa-copy"></i>{t.copyUrl}
           </button>
+          <button
+            onClick={forceSyncRemote}
+            disabled={isSyncing}
+            className={`w-full text-xs py-2 rounded-lg flex items-center justify-center gap-2 border transition-colors ${
+              isSyncing
+                ? 'bg-gray-800 text-gray-400 border-gray-700 cursor-wait'
+                : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30'
+            }`}
+          >
+            <i className={`fas fa-cloud-arrow-up ${isSyncing ? 'animate-pulse' : ''}`}></i>
+            {t.forceSync}
+          </button>
+          {syncStatus !== 'idle' && (
+            <div className="text-[10px] text-center">
+              {syncStatus === 'success' ? (
+                <span className="text-emerald-400">{t.syncOk}</span>
+              ) : (
+                <span className="text-red-400">{t.syncError}</span>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <button onClick={exportData} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.exportData}</button>
             <button onClick={() => fileInputRef.current?.click()} className="bg-gray-800 hover:bg-gray-700 text-[10px] py-2 rounded border border-gray-700">{t.importData}</button>
