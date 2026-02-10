@@ -51,7 +51,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   useEffect(() => {
+    // Persiste localmente para uso offline / mesma máquina
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    // Também envia o estado completo para o backend (se existir /api/state)
+    const syncRemote = async () => {
+      try {
+        await fetch('/api/state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(state),
+        });
+      } catch (err) {
+        console.error('Falha ao sincronizar estado remoto', err);
+      }
+    };
+
+    // Ignora erros silenciosamente em ambiente de desenvolvimento/local
+    syncRemote();
   }, [state]);
 
   useEffect(() => {

@@ -38,7 +38,7 @@ const AnimatedValue: React.FC<{ value: string | number, colorClass?: string, ani
 };
 
 const OverlayPage: React.FC = () => {
-  const { state } = useAppContext();
+  const { state, setState } = useAppContext();
   const [showStatus, setShowStatus] = useState(true);
   const { style, stats, lostBuilds } = state;
   
@@ -47,6 +47,32 @@ const OverlayPage: React.FC = () => {
     const timer = setTimeout(() => setShowStatus(false), 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Faz polling periódico do backend para manter o overlay em sincronia
+  // com o painel de administração rodando em outro navegador / máquina.
+  useEffect(() => {
+    const fetchRemoteState = async () => {
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+        const remote = await res.json();
+        if (remote && typeof remote === 'object') {
+          // Considera o backend como fonte de verdade para o overlay
+          setState(remote);
+        }
+      } catch {
+        // Em caso de erro (por exemplo, ambiente local sem backend),
+        // simplesmente mantém o estado atual.
+      }
+    };
+
+    // Busca inicial imediata
+    fetchRemoteState();
+
+    // Atualiza a cada 1 segundo
+    const id = setInterval(fetchRemoteState, 1000);
+    return () => clearInterval(id);
+  }, [setState]);
 
   if (!style || !style.visibleFields) return null;
 
