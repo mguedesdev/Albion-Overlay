@@ -1,0 +1,5 @@
+{
+  "name": "Albion Overlay Manager",
+  "description": "A professional real-time overlay system for Albion Online players to track wins, losses, profit, and builds lost in OBS.",
+  "requestFramePermissions": []
+}
