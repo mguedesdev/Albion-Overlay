@@ -6,13 +6,20 @@
 
 const KEY = 'albion_overlay_state';
 
-module.exports = async (req, res) => {
+// Handler em formato ESM padrão para Vercel Functions,
+// usando apenas APIs nativas de Node (sem res.json / res.status).
+export default async function handler(req, res) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
+  const sendJson = (statusCode, payload) => {
+    res.statusCode = statusCode;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify(payload));
+  };
+
   if (!url || !token) {
-    res.statusCode = 500;
-    res.json({ error: 'Redis não configurado. Defina UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN.' });
+    sendJson(500, { error: 'Redis não configurado. Defina UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN.' });
     return;
   }
 
@@ -29,18 +36,15 @@ module.exports = async (req, res) => {
       const raw = data.result;
 
       if (!raw) {
-        res.statusCode = 200;
-        res.json(null);
+        sendJson(200, null);
         return;
       }
 
       const parsed = JSON.parse(raw);
-      res.statusCode = 200;
-      res.json(parsed);
+      sendJson(200, parsed);
     } catch (err) {
       console.error('Erro ao buscar estado no Redis', err);
-      res.statusCode = 500;
-      res.json({ error: 'Erro ao buscar estado no backend.' });
+      sendJson(500, { error: 'Erro ao buscar estado no backend.' });
     }
     return;
   }
@@ -74,12 +78,10 @@ module.exports = async (req, res) => {
 
       const data = await response.json();
 
-      res.statusCode = 200;
-      res.json({ ok: true, result: data.result });
+      sendJson(200, { ok: true, result: data.result });
     } catch (err) {
       console.error('Erro ao salvar estado no Redis', err);
-      res.statusCode = 500;
-      res.json({ error: 'Erro ao salvar estado no backend.' });
+      sendJson(500, { error: 'Erro ao salvar estado no backend.' });
     }
     return;
   }
@@ -88,5 +90,5 @@ module.exports = async (req, res) => {
   res.setHeader('Allow', ['GET', 'POST']);
   res.statusCode = 405;
   res.end('Method Not Allowed');
-};
+}
 
