@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LostBuild, THEMES, PRESETS, OverlayStyle, AnimationType } from '../types';
 import StatControl from '../components/StatControl';
 import { calculateTotalLoss, formatSilver, parseSilverShorthand } from '../utils';
@@ -12,6 +12,32 @@ const AdminPage: React.FC = () => {
   const [newBuildValue, setNewBuildValue] = useState('');
   const [quickDeathValue, setQuickDeathValue] = useState('');
   const [activeTab, setActiveTab] = useState<'stats' | 'style'>('stats');
+  const [profitRaw, setProfitRaw] = useState(
+    state.stats.profit === 0 ? '' : formatSilver(state.stats.profit)
+  );
+  
+  useEffect(() => {
+    // Only update if the parsed value of current input doesn't match the new state
+    // This prevents overwriting while typing if there's some background sync, 
+    // but primarily we want to respect the external state change (e.g. reset/import)
+    const currentParsed = parseSilverShorthand(profitRaw);
+    if (currentParsed !== state.stats.profit) {
+      setProfitRaw(state.stats.profit === 0 ? '' : formatSilver(state.stats.profit));
+    }
+  }, [state.stats.profit]);
+
+  const handleProfitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfitRaw(e.target.value);
+  };
+
+  const commitProfit = () => {
+    const val = parseSilverShorthand(profitRaw);
+    updateStats({ profit: val });
+    // We don't strictly need to setProfitRaw here because the useEffect will trigger 
+    // due to updateStats updating the state.stats.profit
+    // But setting it ensures immediate feedback if the value didn't actually change numerically
+    // setProfitRaw(val === 0 ? '' : formatSilver(val)); 
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -335,8 +361,15 @@ const AdminPage: React.FC = () => {
                     <input 
                       type="text" 
                       placeholder={t.profitPlaceholder} 
-                      value={state.stats.profit === 0 ? '' : formatSilver(state.stats.profit)} 
-                      onChange={(e) => updateStats({ profit: parseSilverShorthand(e.target.value) })} 
+                      value={profitRaw} 
+                      onChange={handleProfitChange}
+                      onBlur={commitProfit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitProfit();
+                          e.currentTarget.blur();
+                        }
+                      }}
                       className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 px-3 text-white font-bold" 
                     />
                   </div>
